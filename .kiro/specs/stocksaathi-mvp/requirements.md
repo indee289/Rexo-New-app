@@ -166,7 +166,7 @@ Acceptance criteria:
 | Permissions | Camera/photo access only when adding a photo; notification permission only when alerts are enabled. No contacts, no location, no SMS. |
 | Privacy | Stock data stays on-device unless the owner connects sync. Google tokens stored in platform secure storage. No third-party analytics. |
 | Crash budget | Crash-free sessions above 99.5% before public launch |
-| App size | Under 30 MB download |
+| App size | Under 30 MB as delivered by Play. The universal sideload APK is larger (roughly 65 MB) because it carries every ABI; Play splits the app bundle per device. A split-per-ABI APK was rejected for sideloading because installing the wrong ABI fails with an unhelpful error. |
 
 ## 6. Pre-launch checklist (non-code)
 

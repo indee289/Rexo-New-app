@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # StockSaathi tracks quantity only. This fails the build if a money
       # field, column, or label ever creeps into the app or the manifest.
@@ -40,7 +40,7 @@ jobs:
           echo "No money fields found."
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -115,17 +115,30 @@ jobs:
         run: |
           echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set, so this APK is signed with the debug key. Installable for testing, not publishable to Play."
 
+      # One universal APK, deliberately. Split-per-ABI builds are a third of
+      # the size, but a shop owner sideloading the wrong ABI just gets "app
+      # not installed", and that support cost is worse than the download size.
       - name: Build release APK
         run: |
           flutter build apk --release \
             --build-name="${{ steps.ver.outputs.name }}" \
             --build-number="${{ github.run_number }}"
 
-      - name: Collect APK
+      # For Play Store uploads. Play splits it per device, so the actual
+      # download ends up far smaller than the universal APK.
+      - name: Build app bundle
+        run: |
+          flutter build appbundle --release \
+            --build-name="${{ steps.ver.outputs.name }}" \
+            --build-number="${{ github.run_number }}"
+
+      - name: Collect artifacts
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk \
              "dist/StockSaathi-${{ steps.ver.outputs.tag }}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab \
+             "dist/StockSaathi-${{ steps.ver.outputs.tag }}.aab"
           ls -lh dist
 
       # The SHA-1 below is what you paste into the Google Cloud Console OAuth
@@ -142,8 +155,8 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StockSaathi-apk-${{ github.run_number }}
-          path: dist/*.apk
+          name: StockSaathi-${{ github.run_number }}
+          path: dist/*
           retention-days: 30
           if-no-files-found: error
 
@@ -157,9 +170,10 @@ jobs:
             signed="release keystore from repository secrets"
           fi
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" dist/*.apk \
+          gh release create "$TAG" dist/* \
             --title "StockSaathi ${{ steps.ver.outputs.name }} (build ${{ github.run_number }})" \
-            --notes "Install the APK on Android 8.0 or newer.
+            --notes "**Phone par install karne ke liye \`.apk\` download karein.** Android 8.0 ya usse naya chahiye.
+          The \`.aab\` is for uploading to the Play Console, not for installing on a phone.
 
           Version ${{ steps.ver.outputs.name }}, build ${{ github.run_number }}
           Commit \`${{ github.sha }}\`
