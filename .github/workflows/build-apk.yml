@@ -65,12 +65,14 @@ jobs:
           fetch() {
             curl -fsSL "$1" -o "$2" && [ -s "$2" ]
           }
-          noto=https://raw.githubusercontent.com/notofonts/devanagari/main/fonts/NotoSansDevanagari/hinted/ttf
-          alt=https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansDevanagari
+          noto=https://raw.githubusercontent.com/notofonts/notofonts.github.io/main/fonts/NotoSansDevanagari/hinted/ttf
+          # Fallback is the variable font from google/fonts; its default
+          # instance is the regular weight, which is good enough for both.
+          alt='https://raw.githubusercontent.com/google/fonts/main/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth,wght%5D.ttf'
           for weight in Regular Bold; do
             target="assets/fonts/NotoSansDevanagari-$weight.ttf"
             fetch "$noto/NotoSansDevanagari-$weight.ttf" "$target" \
-              || fetch "$alt/NotoSansDevanagari-$weight.ttf" "$target" \
+              || fetch "$alt" "$target" \
               || echo "::warning::Could not fetch NotoSansDevanagari-$weight.ttf; PDF will use the fallback font."
           done
           ls -l assets/fonts || true
