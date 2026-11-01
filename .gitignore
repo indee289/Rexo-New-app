@@ -1,0 +1,26 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+pubspec.lock
+*.iml
+.idea/
+.vscode/
+
+# Android
+android/local.properties
+android/.gradle/
+android/key.properties
+android/app/upload-keystore.jks
+android/app/*.jks
+android/app/*.keystore
+*.apk
+*.aab
+
+# Fetched at build time, never committed
+assets/fonts/*.ttf
+
+# Scratch
+.scratch/

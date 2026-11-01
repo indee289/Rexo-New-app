@@ -402,3 +402,34 @@ A regression guard worth adding to CI: a test that fails if any column name or e
 **Phase 2:** barcode scanning for item entry, two-way Google Sheets sync with explicit conflict handling, staff logins and a backend sync target, Microsoft OneDrive / Excel Online sync, automatic cloud backup.
 
 **Phase 3:** multiple shops, monthly reports, WhatsApp low-stock alerts, premium tier (unlimited items, priority support).
+
+## 10. Implementation notes and deviations
+
+What actually shipped in the first implementation, where it differs from the plan above, and why. The plan is not retroactively edited; this section is the record.
+
+| Planned | Shipped | Reason |
+|---|---|---|
+| `drift` for the local database | `sqflite` with hand-written SQL | Drift needs `build_runner` code generation. Nothing in the delivery environment can run codegen, and hand-editing generated files is worse than owning the SQL. The schema in `lib/data/db.dart` is exactly what runs. |
+| `riverpod` for state | `provider` with a single `ChangeNotifier` repository | No code generation, and the app has one source of truth rather than a graph of providers. |
+| ARB files plus `flutter gen-l10n` | `lib/core/strings.dart`, a plain class with two const instances | Also codegen-free, and it makes a missing or misspelled string a compile error instead of a runtime fallback. |
+| `googleapis` package for Sheets | Raw REST calls over `http` | `googleapis` bundles every Google API. Four endpoints are needed (create, values.update, values.append, values.clear), so the dependency cost was not worth it. |
+| `printing` package | Removed; PDF is saved then shared | It pulls a native rendering engine in for a feature any PDF viewer already provides. Smaller APK, one less native dependency. |
+| `connectivity_plus` to detect reconnection | Exponential-backoff retry timer plus an app-resume trigger | Removes a dependency whose API changed across majors, with nearly the same behaviour: a pending push goes out on the next retry tick or the next time the app is opened. |
+| Device timezone lookup for reminders | Hardcoded `Asia/Kolkata` | The audience is Indian shops. Avoids a plugin whose only job is reading a zone name. |
+| Backup includes item photos | Backup is JSON, photos excluded | Including photos turns a shareable file into tens of megabytes. Restoring brings back every item, movement, category, and setting, with photos empty. Documented in the UI copy. |
+| Excel header row frozen | Header is bold, not frozen | The `excel` package's freeze-pane support is not something this implementation could verify, and a bold header carries the same meaning. |
+| Excel "Last Updated" as a date cell | Written as formatted text | Avoids depending on the package's date serialisation. Quantity and Minimum Stock are still real numeric cells, which is what the acceptance criterion needs. |
+| Not previously specified | `url_launcher` added | Opens the synced spreadsheet in a browser from Settings, with a clipboard fallback when no browser handles the link. |
+
+### Known limitation: Devanagari in PDF
+
+The `pdf` package maps glyphs but does not do complex-script shaping. Devanagari conjuncts and vowel marks can therefore render imperfectly in exported PDFs even with the Noto Devanagari font embedded. Latin text, digits, and the Excel export are unaffected. If faithful Hindi PDF output becomes a requirement, it needs a shaping engine, which is a Phase 2 item rather than a tweak.
+
+### Verification status
+
+The build is verified by the `Build APK` workflow, which compiles the release APK on every push to `main` and fails on any analyzer error. Compilation, dependency resolution, and packaging are therefore machine-checked. The following need a physical device and were not verified by CI:
+
+1. Google Sheets sync end to end, which also requires the OAuth client described in `tasks.md` task 5.1 to exist with the release certificate's SHA-1.
+2. The daily reminder actually firing, which depends on per-OEM battery policy.
+3. Camera and gallery capture.
+4. Visual layout at the largest system font scale.

@@ -1,0 +1,11 @@
+Fonts in this folder are fetched at build time, not committed to the repository.
+
+NotoSansDevanagari-Regular.ttf and NotoSansDevanagari-Bold.ttf
+  Source:  https://github.com/notofonts/devanagari
+  License: SIL Open Font License, Version 1.1
+           https://scripts.sil.org/OFL
+  Copyright 2022 The Noto Project Authors
+
+These are used only to embed Devanagari glyphs in generated PDF files. If the
+files are missing, lib/services/export_pdf.dart falls back to the built-in
+Helvetica font, which has no Devanagari coverage.

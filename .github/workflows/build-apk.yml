@@ -1,0 +1,167 @@
+name: Build APK
+
+# Every push to main produces a signed release APK and publishes it as a
+# GitHub Release. Signing secrets are optional: without them the workflow
+# still builds an installable APK using the debug key, so it never breaks.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.kiro/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Release APK
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # StockSaathi tracks quantity only. This fails the build if a money
+      # field, column, or label ever creeps into the app or the manifest.
+      - name: Guard - no money fields
+        run: |
+          if grep -rinE '(price|mrp|rupee|₹)' lib/ android/app/src/main/ ; then
+            echo "::error::Money-related text found. StockSaathi stores quantity only."
+            exit 1
+          fi
+          echo "No money fields found."
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show toolchain
+        run: |
+          flutter --version
+          java -version
+
+      # The PDF export embeds this font so Hindi item names render. If the
+      # download fails the export silently falls back to the built-in font,
+      # so this step warns instead of failing the build.
+      - name: Fetch Devanagari font
+        run: |
+          mkdir -p assets/fonts
+          fetch() {
+            curl -fsSL "$1" -o "$2" && [ -s "$2" ]
+          }
+          noto=https://raw.githubusercontent.com/notofonts/devanagari/main/fonts/NotoSansDevanagari/hinted/ttf
+          alt=https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansDevanagari
+          for weight in Regular Bold; do
+            target="assets/fonts/NotoSansDevanagari-$weight.ttf"
+            fetch "$noto/NotoSansDevanagari-$weight.ttf" "$target" \
+              || fetch "$alt/NotoSansDevanagari-$weight.ttf" "$target" \
+              || echo "::warning::Could not fetch NotoSansDevanagari-$weight.ttf; PDF will use the fallback font."
+          done
+          ls -l assets/fonts || true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # Errors fail the build; style warnings and hints do not.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Read version
+        id: ver
+        run: |
+          name=$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '[:space:]')
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=v$name-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Version $name build ${{ github.run_number }}"
+
+      - name: Configure release signing
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
+          if [ ! -s android/app/release.jks ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 did not decode to a keystore."
+            exit 1
+          fi
+          cat > android/key.properties <<'PROPS'
+          storeFile=app/release.jks
+          PROPS
+          {
+            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}"
+            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}"
+          } >> android/key.properties
+          echo "Release signing configured."
+
+      - name: Note about unsigned build
+        if: env.KEYSTORE_B64 == ''
+        run: |
+          echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set, so this APK is signed with the debug key. Installable for testing, not publishable to Play."
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --build-name="${{ steps.ver.outputs.name }}" \
+            --build-number="${{ github.run_number }}"
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "dist/StockSaathi-${{ steps.ver.outputs.tag }}.apk"
+          ls -lh dist
+
+      # The SHA-1 below is what you paste into the Google Cloud Console OAuth
+      # client so Google Sheets sync works in the released build.
+      - name: Show release signing SHA-1
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          keytool -list -v \
+            -keystore android/app/release.jks \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            | grep -iE 'SHA1|SHA-1|SHA256|SHA-256' || true
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StockSaathi-apk-${{ github.run_number }}
+          path: dist/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          signed="debug key (no signing secrets set)"
+          if [ -n "$KEYSTORE_B64" ]; then
+            signed="release keystore from repository secrets"
+          fi
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" dist/*.apk \
+            --title "StockSaathi ${{ steps.ver.outputs.name }} (build ${{ github.run_number }})" \
+            --notes "Install the APK on Android 8.0 or newer.
+
+          Version ${{ steps.ver.outputs.name }}, build ${{ github.run_number }}
+          Commit \`${{ github.sha }}\`
+          Signed with: $signed
+
+          Quantity only. This app has no money fields of any kind."
+          echo "Released $TAG"
