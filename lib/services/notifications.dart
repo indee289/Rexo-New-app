@@ -83,6 +83,8 @@ class Reminders {
         // Inexact on purpose: exact alarms need a special Android permission
         // and a reminder that fires a few minutes late is fine.
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
       return true;

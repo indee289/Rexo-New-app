@@ -65,8 +65,8 @@ String statusLabel(StockStatus st, S s) {
   }
 }
 
-class Category {
-  const Category({
+class ItemCategory {
+  const ItemCategory({
     required this.id,
     required this.nameEn,
     required this.nameHi,
@@ -93,7 +93,7 @@ class Category {
         'sort_order': sortOrder,
       };
 
-  static Category fromRow(Map<String, Object?> r) => Category(
+  static ItemCategory fromRow(Map<String, Object?> r) => ItemCategory(
         id: r['id'] as String,
         nameEn: r['name_en'] as String,
         nameHi: r['name_hi'] as String,

@@ -28,7 +28,7 @@ class AppRepo extends ChangeNotifier {
 
   final Database _db;
 
-  List<Category> _categories = const [];
+  List<ItemCategory> _categories = const [];
   List<Item> _items = const [];
   Map<String, String> _settings = const {};
   SyncState _sync = SyncState.disabled;
@@ -38,7 +38,7 @@ class AppRepo extends ChangeNotifier {
   /// knowing anything about Google.
   void Function()? onDataChanged;
 
-  List<Category> get categories => _categories;
+  List<ItemCategory> get categories => _categories;
   List<Item> get items => _items;
   SyncState get sync => _sync;
   Totals get totals => _totals;
@@ -73,7 +73,7 @@ class AppRepo extends ChangeNotifier {
     final settingRows = await _db.query('settings');
     final syncRows = await _db.query('sync_state', where: 'id = 1');
 
-    _categories = catRows.map(Category.fromRow).toList();
+    _categories = catRows.map(ItemCategory.fromRow).toList();
     _items = itemRows.map(Item.fromRow).toList();
     _settings = {
       for (final r in settingRows)
@@ -141,7 +141,7 @@ class AppRepo extends ChangeNotifier {
 
   // -------------------------------------------------------------- categories
 
-  Category? categoryById(String id) {
+  ItemCategory? categoryById(String id) {
     for (final c in _categories) {
       if (c.id == id) return c;
     }
@@ -153,19 +153,19 @@ class AppRepo extends ChangeNotifier {
     return c?.name(s) ?? '';
   }
 
-  Category get fallbackCategory => _categories.firstWhere(
+  ItemCategory get fallbackCategory => _categories.firstWhere(
         (c) => c.id == 'other',
         orElse: () => _categories.first,
       );
 
   /// Adds a custom category. The owner types one name, used for both languages.
-  Future<Category> addCategory(String name) async {
+  Future<ItemCategory> addCategory(String name) async {
     final trimmed = name.trim();
     final existing = _categories.firstWhere(
       (c) =>
           c.nameEn.toLowerCase() == trimmed.toLowerCase() ||
           c.nameHi == trimmed,
-      orElse: () => const Category(
+      orElse: () => const ItemCategory(
         id: '',
         nameEn: '',
         nameHi: '',
@@ -177,7 +177,7 @@ class AppRepo extends ChangeNotifier {
     if (existing.id.isNotEmpty) return existing;
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    final cat = Category(
+    final cat = ItemCategory(
       id: AppDb.newId(),
       nameEn: trimmed,
       nameHi: trimmed,

@@ -219,8 +219,8 @@ class SectionTitle extends StatelessWidget {
 }
 
 /// Thumbnail: the item photo when there is one, otherwise its category icon.
-class Thumb extends StatelessWidget {
-  const Thumb({super.key, required this.icon, this.file, this.size = 46});
+class ItemThumb extends StatelessWidget {
+  const ItemThumb({super.key, required this.icon, this.file, this.size = 46});
 
   final IconData icon;
   final File? file;

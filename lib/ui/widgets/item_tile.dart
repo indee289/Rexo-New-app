@@ -41,7 +41,7 @@ class ItemTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              Thumb(
+              ItemThumb(
                 icon: AppIcons.forCategory(categoryIconKey),
                 file: PhotoStore.file(item.photoPath),
               ),

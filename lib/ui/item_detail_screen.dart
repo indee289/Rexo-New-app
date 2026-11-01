@@ -90,7 +90,7 @@ class ItemDetailScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Thumb(
+            ItemThumb(
               icon: AppIcons.forCategory(cat?.iconKey),
               file: PhotoStore.file(item.photoPath),
               size: 72,
